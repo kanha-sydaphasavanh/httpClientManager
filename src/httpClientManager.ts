@@ -3,7 +3,7 @@ import https from 'https';
 import DigestClient from 'digest-fetch';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
-type AuthMethod = 'API_KEY' | 'BASIC' | 'BEARER_TOKEN' | 'DIGEST' | undefined;
+type AuthMethod = 'API_KEY' | 'BASIC' | 'BEARER_TOKEN' | 'DIGEST';
 
 export interface LoginCredentials {
     username: string;
