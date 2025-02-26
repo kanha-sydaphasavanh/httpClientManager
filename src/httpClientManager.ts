@@ -25,8 +25,8 @@ export interface AuthData {
     credentials?: LoginCredentials | ApiKeyCredentials | BearerTokenCredentials | {};
 }
 
-export class HttpClient {
-    private static instance: HttpClient;
+export class HttpClientManager {
+    private static instance: HttpClientManager;
     private apiClient: AxiosInstance;
     private digestClient: DigestClient | null = null;
     private baseUrl: string;
@@ -50,11 +50,11 @@ export class HttpClient {
         }
     }
 
-    public static getInstance(baseURL: string, authData?: AuthData | undefined): HttpClient {
-        if (!HttpClient.instance) {
-            HttpClient.instance = new HttpClient(baseURL, authData);
+    public static getInstance(baseURL: string, authData?: AuthData | undefined): HttpClientManager {
+        if (!HttpClientManager.instance) {
+            HttpClientManager.instance = new HttpClientManager(baseURL, authData);
         }
-        return HttpClient.instance;
+        return HttpClientManager.instance;
     }
 
     private async _request(method: HttpMethod, endpoint: string, data?: any, params: Record<string, any> = {}, customHeader: Record<any, string> = {}) {
