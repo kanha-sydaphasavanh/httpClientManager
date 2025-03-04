@@ -5,17 +5,17 @@ import DigestClient from 'digest-fetch';
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 type AuthMethod = 'API_KEY' | 'BASIC' | 'BEARER_TOKEN' | 'DIGEST';
 
-export interface LoginCredentials {
+interface LoginCredentials {
     username: string;
     password: string;
 }
 
-export interface ApiKeyCredentials {
+interface ApiKeyCredentials {
     key: string;
     apiKey: string;
 }
 
-export interface BearerTokenCredentials {
+interface BearerTokenCredentials {
     token: string;
     refreshToken?: string;
 }
@@ -75,7 +75,7 @@ export class HttpClientManager {
                 // console.log(`API DIGEST : ${url}`);
                 const response = await this.digestClient.fetch(url, options);
                 const responseData = await response.json();
-                
+
                 return {
                     data: responseData,
                     status: response.status,
@@ -107,11 +107,11 @@ export class HttpClientManager {
 
     private formatQueryParams(params: Record<string, any>): string {
         if (Object.keys(params).length === 0) return '';
-        
+
         const queryString = Object.entries(params)
             .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
             .join('&');
-        
+
         return `?${queryString}`;
     }
 
@@ -133,7 +133,7 @@ export class HttpClientManager {
 
     private authorizationHeader(authData: AuthData): Record<string, string> {
         let authHeaders: Record<string, string> = {};
-        
+
         switch (authData.security) {
             case "BASIC":
                 const { username, password } = authData.credentials as LoginCredentials;
