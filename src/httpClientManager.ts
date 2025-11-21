@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { AxiosInstance } from 'axios';
 import https from 'https';
-import node_fetch from 'node-fetch';
+import { Agent, fetch as undiciFetch } from 'undici';
 import DigestClient from 'digest-fetch';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -33,33 +33,51 @@ export interface SslError {
 }
 
 export class HttpClientManager {
-    private static instance: HttpClientManager;
+    // private static instance: HttpClientManager;
     private apiClient: AxiosInstance;
     private digestClient: DigestClient | null = null;
     private baseUrl: string;
     private authData: AuthData;
-    private ignoreSslError : SslError = { ignoreSslError: false };
+    private ignoreSslError: SslError = { ignoreSslError: false };
+    private httpsAgent: https.Agent;
+    private undiciAgent: Agent | undefined;
 
-    public constructor(baseUrl: string, authData: AuthData | undefined, _ignoreSslError: SslError) {
-        
+    public constructor(baseUrl: string, authData: AuthData | undefined, _ignoreSslError: SslError = { ignoreSslError: false }) {
+
         this.baseUrl = baseUrl;
         this.authData = authData ?? {};
         this.ignoreSslError = _ignoreSslError;
 
-        
-        const agent = new https.Agent({ rejectUnauthorized: !this.ignoreSslError.ignoreSslError });
-        this.apiClient = axios.create({
-            baseURL: this.baseUrl,
-            httpsAgent: agent,
+        if (this.ignoreSslError && this.ignoreSslError.ignoreSslError) {
+            process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+        }
+
+        this.httpsAgent = new https.Agent({ rejectUnauthorized: !this.ignoreSslError.ignoreSslError });
+        this.undiciAgent = new Agent({ connect: { rejectUnauthorized: !this.ignoreSslError.ignoreSslError } });
+
+
+
+        console.log('SSL Configuration:', {
+            ignoreSslError: this.ignoreSslError.ignoreSslError,
+            rejectUnauthorized: !this.ignoreSslError.ignoreSslError
         });
 
-        // Initialiser le client digest si nécessaire
+        this.apiClient = axios.create({
+            baseURL: this.baseUrl,
+            httpsAgent: this.httpsAgent,
+        });
+
         if (this.authData.security === 'DIGEST' && this.authData.credentials) {
             const { username, password } = this.authData.credentials as LoginCredentials;
             this.digestClient = new DigestClient(username, password, {
                 algorithm: 'MD5',
                 statusCode: 401,
-                fetch: (url: string, options: any = {}) => node_fetch(url, { ...options, agent: agent })
+                fetch: (url: string, options: any = {}) => {
+                    return undiciFetch(url, {
+                        ...options,
+                        dispatcher: this.undiciAgent
+                    });
+                }
             });
         }
     }
