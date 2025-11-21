@@ -5,3 +5,6 @@ dist/
 tsconfig.old.json
 build/
 .DS_Store 
+package-lock.json
+yarn.lock
+npm-debug.log
