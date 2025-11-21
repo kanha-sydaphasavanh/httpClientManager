@@ -1,9 +1,12 @@
-import axios, { AxiosInstance } from 'axios';
+import axios from 'axios';
+import type { AxiosInstance } from 'axios';
 import https from 'https';
+import node_fetch from 'node-fetch';
 import DigestClient from 'digest-fetch';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 type AuthMethod = 'API_KEY' | 'BASIC' | 'BEARER_TOKEN' | 'DIGEST';
+
 
 interface LoginCredentials {
     username: string;
@@ -21,8 +24,12 @@ interface BearerTokenCredentials {
 }
 
 export interface AuthData {
-    security?: AuthMethod;
+    security?: AuthMethod | '';
     credentials?: LoginCredentials | ApiKeyCredentials | BearerTokenCredentials | {};
+}
+
+export interface SslError {
+    ignoreSslError: boolean;
 }
 
 export class HttpClientManager {
@@ -31,13 +38,19 @@ export class HttpClientManager {
     private digestClient: DigestClient | null = null;
     private baseUrl: string;
     private authData: AuthData;
+    private ignoreSslError : SslError = { ignoreSslError: false };
 
-    private constructor(baseUrl: string, authData: AuthData | undefined) {
+    public constructor(baseUrl: string, authData: AuthData | undefined, _ignoreSslError: SslError) {
+        
         this.baseUrl = baseUrl;
         this.authData = authData ?? {};
+        this.ignoreSslError = _ignoreSslError;
+
+        
+        const agent = new https.Agent({ rejectUnauthorized: !this.ignoreSslError.ignoreSslError });
         this.apiClient = axios.create({
             baseURL: this.baseUrl,
-            httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+            httpsAgent: agent,
         });
 
         // Initialiser le client digest si nécessaire
@@ -45,17 +58,20 @@ export class HttpClientManager {
             const { username, password } = this.authData.credentials as LoginCredentials;
             this.digestClient = new DigestClient(username, password, {
                 algorithm: 'MD5',
-                statusCode: 401
+                statusCode: 401,
+                fetch: (url: string, options: any = {}) => node_fetch(url, { ...options, agent: agent })
             });
         }
     }
 
-    public static getInstance(baseURL: string, authData?: AuthData | undefined): HttpClientManager {
-        if (!HttpClientManager.instance) {
-            HttpClientManager.instance = new HttpClientManager(baseURL, authData);
-        }
-        return HttpClientManager.instance;
-    }
+
+    // public static getInstance(baseURL: string, authData?: AuthData | undefined, ignoreSslError: SslError = { ignoreSslError: false }): HttpClientManager {
+    //     if (!HttpClientManager.instance) {
+    //         HttpClientManager.instance = new HttpClientManager(baseURL, authData, ignoreSslError);
+    //     console.log(ignoreSslError);
+    //     }
+    //     return HttpClientManager.instance;
+    // }
 
     private async _request(method: HttpMethod, endpoint: string, data?: any, params: Record<string, any> = {}, customHeader: Record<any, string> = {}) {
         try {
