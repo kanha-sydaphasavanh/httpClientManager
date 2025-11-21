@@ -1,2 +1,7 @@
 node_modules/
 main.ts
+dist/
+.env
+tsconfig.old.json
+build/
+.DS_Store 
