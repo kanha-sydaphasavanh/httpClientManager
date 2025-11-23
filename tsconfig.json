@@ -11,5 +11,5 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "exclude": ["node_modules", "src/main.ts","tsconfig.old.json"]
+  "exclude": ["node_modules", "src/main.ts","tsconfig.old.json","build"]
 }
