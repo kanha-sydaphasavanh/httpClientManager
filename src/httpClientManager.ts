@@ -7,7 +7,6 @@ import DigestClient from 'digest-fetch';
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 type AuthMethod = 'API_KEY' | 'BASIC' | 'BEARER_TOKEN' | 'DIGEST';
 
-
 interface LoginCredentials {
     username: string;
     password: string;
@@ -28,53 +27,64 @@ export interface AuthData {
     credentials?: LoginCredentials | ApiKeyCredentials | BearerTokenCredentials | {};
 }
 
-export interface SslError {
-    ignoreSslError: boolean;
+export interface HttpClientOptions {
+    ignoreSslError?: boolean;
+    headers?: Record<string, string>;
 }
 
 export class HttpClientManager {
-    // private static instance: HttpClientManager;
+
     private apiClient: AxiosInstance;
     private digestClient: DigestClient | null = null;
     private baseUrl: string;
     private authData: AuthData;
-    private ignoreSslError: SslError = { ignoreSslError: false };
     private httpsAgent: https.Agent;
     private undiciAgent: Agent | undefined;
+    private options: HttpClientOptions;
 
-    public constructor(baseUrl: string, authData: AuthData | undefined, _ignoreSslError: SslError = { ignoreSslError: false }) {
+    public constructor(_baseUrl: string, _authData: AuthData | undefined, _options: HttpClientOptions = {}) {
 
-        this.baseUrl = baseUrl;
-        this.authData = authData ?? {};
-        this.ignoreSslError = _ignoreSslError;
+        this.baseUrl = _baseUrl;
+        this.authData = _authData ?? {};
 
-        if (this.ignoreSslError && this.ignoreSslError.ignoreSslError) {
+        this.options = {
+            ignoreSslError: _options.ignoreSslError ?? false,
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json;charset=utf-8',
+                ..._options.headers
+            }
+        }
+
+        if (this.options.ignoreSslError) {
             process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
         }
 
-        this.httpsAgent = new https.Agent({ rejectUnauthorized: !this.ignoreSslError.ignoreSslError });
-        this.undiciAgent = new Agent({ connect: { rejectUnauthorized: !this.ignoreSslError.ignoreSslError } });
-
-
-
-        console.log('SSL Configuration:', {
-            ignoreSslError: this.ignoreSslError.ignoreSslError,
-            rejectUnauthorized: !this.ignoreSslError.ignoreSslError
-        });
+        this.httpsAgent = new https.Agent({ rejectUnauthorized: !this.options.ignoreSslError });
+        this.undiciAgent = new Agent({ connect: { rejectUnauthorized: !this.options.ignoreSslError } });
 
         this.apiClient = axios.create({
             baseURL: this.baseUrl,
             httpsAgent: this.httpsAgent,
+            headers: {
+                ...this.options.headers,
+                ...this.authorization(this.authData)
+            }
         });
 
         if (this.authData.security === 'DIGEST' && this.authData.credentials) {
             const { username, password } = this.authData.credentials as LoginCredentials;
             this.digestClient = new DigestClient(username, password, {
+
                 algorithm: 'MD5',
                 statusCode: 401,
                 fetch: (url: string, options: any = {}) => {
                     return undiciFetch(url, {
                         ...options,
+                        headers: {
+                            ...options.headers,
+                            ...this.options.headers
+                        },
                         dispatcher: this.undiciAgent
                     });
                 }
@@ -82,27 +92,13 @@ export class HttpClientManager {
         }
     }
 
-
-    // public static getInstance(baseURL: string, authData?: AuthData | undefined, ignoreSslError: SslError = { ignoreSslError: false }): HttpClientManager {
-    //     if (!HttpClientManager.instance) {
-    //         HttpClientManager.instance = new HttpClientManager(baseURL, authData, ignoreSslError);
-    //     console.log(ignoreSslError);
-    //     }
-    //     return HttpClientManager.instance;
-    // }
-
-    private async _request(method: HttpMethod, endpoint: string, data?: any, params: Record<string, any> = {}, customHeader: Record<any, string> = {}) {
+    private async _request(method: HttpMethod, endpoint: string, data?: any, params: Record<string, any> = {}) {
         try {
             // Si l'authentification est de type DIGEST, utiliser digestClient
             if (this.authData.security === 'DIGEST' && this.digestClient) {
                 const url = `${this.baseUrl}${endpoint}${this.formatQueryParams(params)}`;
                 const options = {
                     method,
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json;charset=utf-8',
-                        ...customHeader,
-                    },
                     body: method !== 'GET' ? JSON.stringify(data) : undefined,
                 };
 
@@ -122,12 +118,6 @@ export class HttpClientManager {
                     method,
                     params: method === 'GET' ? params : undefined,
                     data: method !== 'GET' ? data : undefined,
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json;charset=utf-8',
-                        ...this.authorizationHeader(this.authData),
-                        ...customHeader,
-                    },
                 };
                 // console.log(`API : ${this.baseUrl}${endpoint}`);
 
@@ -149,23 +139,23 @@ export class HttpClientManager {
         return `?${queryString}`;
     }
 
-    public post(endpoint: string, data: any, params = {}, customHeader = {}) {
-        return this._request('POST', endpoint, data, params, customHeader);
+    public post(endpoint: string, data: any, params = {}) {
+        return this._request('POST', endpoint, data, params);
     }
 
-    public get(endpoint: string, params = {}, customHeader = {}) {
-        return this._request('GET', endpoint, undefined, params, customHeader);
+    public get(endpoint: string, params = {}) {
+        return this._request('GET', endpoint, undefined, params);
     }
 
-    public put(endpoint: string, data: any, params = {}, customHeader = {}) {
-        return this._request('PUT', endpoint, data, params, customHeader);
+    public put(endpoint: string, data: any, params = {}) {
+        return this._request('PUT', endpoint, data, params);
     }
 
-    public delete(endpoint: string, params = {}, customHeader = {}) {
-        return this._request('DELETE', endpoint, undefined, params, customHeader);
+    public delete(endpoint: string, params = {}) {
+        return this._request('DELETE', endpoint, undefined, params);
     }
 
-    private authorizationHeader(authData: AuthData): Record<string, string> {
+    private authorization(authData: AuthData): Record<string, string> {
         let authHeaders: Record<string, string> = {};
 
         switch (authData.security) {
